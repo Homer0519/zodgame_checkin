@@ -1,4 +1,4 @@
-import os, re, sys, time
+﻿import os, re, sys, time
 from urllib.parse import urljoin
 import requests
 
@@ -20,8 +20,7 @@ def get_formhash(session):
     r = session.get(BASE_URL + '/', headers=HEADERS, timeout=TIMEOUT)
     if r.status_code != 200: return None
     m = re.search(r'<input\s+type="hidden"\s+name="formhash"\s+value="([^"]+)"', r.text)
-    if m: return m.group(1)
-    return None
+    return m.group(1) if m else None
 
 def sign_in(session, formhash):
     data = f'formhash={formhash}&qdxq=shuai'
