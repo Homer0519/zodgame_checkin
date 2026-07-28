@@ -124,6 +124,7 @@ def zodgame(cookie_string):
 
     if cookie_string.startswith("cookie:"):
         cookie_string = cookie_string[len("cookie:"):]
+    # 只注入关键认证 cookie，其他 cookie 由浏览器会话自动处理
     cookie_dict = [ 
         {"name": x.split('=')[0].strip(), "value": x.split('=')[1].strip()} 
         for x in cookie_string.split(';')
@@ -131,17 +132,16 @@ def zodgame(cookie_string):
 
     driver.delete_all_cookies()
     for cookie in cookie_dict:
-        if not cookie["name"] or not cookie["value"]:
-            continue
-        try:
-            driver.add_cookie({
-                "domain": "zodgame.xyz",
-                "name": cookie["name"],
-                "value": cookie["value"],
-                "path": "/",
-            })
-        except Exception as e:
-            print(f"【Log】跳过 cookie {cookie['name']}: {e}")
+        if cookie["name"] in ["qhMq_2132_saltkey", "qhMq_2132_auth"]:
+            try:
+                driver.add_cookie({
+                    "domain": "zodgame.xyz",
+                    "name": cookie["name"],
+                    "value": cookie["value"],
+                    "path": "/",
+                })
+            except Exception as e:
+                print(f"【Log】注入 cookie {cookie['name']} 失败: {e}")
     
     driver.get("https://zodgame.xyz/")
     
