@@ -119,7 +119,8 @@ def zodgame(cookie_string):
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    driver = uc.Chrome(options=options)
+    # 锁定 ChromeDriver 版本匹配当前 Chrome
+    driver = uc.Chrome(options=options, version_main=150)
 
     driver.get("https://zodgame.xyz/")
 
