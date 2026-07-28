@@ -116,24 +116,20 @@ def zodgame_task(driver, formhash):
 def zodgame(cookie_string):
     options = uc.ChromeOptions()
     options.add_argument("--disable-popup-blocking")
-    options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    # 锁定 ChromeDriver 版本匹配当前 Chrome
     driver = uc.Chrome(options=options, version_main=150)
 
     driver.get("https://zodgame.xyz/")
 
     if cookie_string.startswith("cookie:"):
         cookie_string = cookie_string[len("cookie:"):]
-    # FIX 1: 移除 buggy replace("/","%2")
     cookie_dict = [ 
         {"name": x.split('=')[0].strip(), "value": x.split('=')[1].strip()} 
         for x in cookie_string.split(';')
     ]
 
     driver.delete_all_cookies()
-    # FIX 2: 注入所有 cookie，不仅仅是 saltkey 和 auth
     for cookie in cookie_dict:
         if not cookie["name"] or not cookie["value"]:
             continue
