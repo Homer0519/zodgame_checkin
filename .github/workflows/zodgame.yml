@@ -1,4 +1,4 @@
-﻿name: zodgame
+name: zodgame
 
 on:
   schedule:
@@ -8,16 +8,23 @@ on:
   workflow_dispatch:
 
 jobs:
-  checkin:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-    - name: Install
+    - name: Install Chrome
+      run: |
+        $chrome = "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe"
+        if (-not (Test-Path $chrome)) {
+          Start-Process -Wait -FilePath winget -ArgumentList "install --id=Google.Chrome --silent --accept-package-agreements --accept-source-agreements"
+        }
+        Get-Item $chrome | Select-Object VersionInfo
+    - name: Install requirements
       run: pip install -r zodgame/requirements.txt
-    - name: Sign in
-      run: python zodgame/zodgame.py
+    - name: Run
+      run: python zodgame/zodgame.py "$env:ZODGAME_COOKIE"
       env:
         ZODGAME_COOKIE: ${{ secrets.ZODGAME_COOKIE }}
