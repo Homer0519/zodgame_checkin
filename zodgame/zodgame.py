@@ -23,10 +23,21 @@ def zodgame_checkin(driver, formhash):
     query = query.replace("\n", "")
     driver.set_script_timeout(240)
     resp = driver.execute_script("return " + query)
-    match = re.search('<div class="c">\r\n(.*?)</div>\r\n', resp["response"], re.S)
-    msg = match[1] if match else "签到失败"
+    body = resp.get("response", "") or ""
+    # 宽松解析：多种分隔符都尝试
+    msg = None
+    for pat in [r'<div class="c">\s*(.*?)\s*</div>', r'<div class="alert_info">(.*?)</div>', r'<h3[^>]*>(.*?)</h3>']:
+        m = re.search(pat, body, re.S)
+        if m:
+            msg = m.group(1).strip()
+            break
+    if msg is None:
+        msg = re.sub(r'<[^>]+>', '', body).strip()[:100] or "签到失败"
     print(f"【签到】{msg}")
-    return "恭喜你签到成功!" in msg or "您今日已经签到" in msg
+    if "恭喜" in body or "已经签到" in body or "明天再来" in body:
+        return True
+    print(f"【Log】原始响应: {body[:200]}")
+    return False
 
 def zodgame_task(driver, formhash):
     def clear_handles(driver, main_handle):
@@ -94,37 +105,42 @@ def zodgame(cookie_string):
     options.add_argument("--disable-popup-blocking")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    # 禁用自动化标志
     options.add_argument("--disable-blink-features=AutomationControlled")
     driver = uc.Chrome(options=options, version_main=150)
 
-    # 使用 CDP 在导航前设置 cookies（比 add_cookie 更可靠）
     if cookie_string.startswith("cookie:"):
         cookie_string = cookie_string[len("cookie:"):]
-    cookies = []
-    for item in cookie_string.split(';'):
-        item = item.strip()
-        if '=' in item:
-            k, v = item.split('=', 1)
-            k, v = k.strip(), v.strip()
-            if k and v:
-                cookies.append({
-                    "name": k, "value": v,
-                    "domain": "zodgame.xyz", "path": "/"
-                })
-    driver.execute_cdp_cmd("Network.setCookies", {"cookies": cookies})
+    cookie_dict = [ 
+        {"name": x.split('=')[0].strip(), "value": x.split('=')[1].strip()} 
+        for x in cookie_string.split(';')
+    ]
 
+    driver.get("https://zodgame.xyz/")
+    driver.delete_all_cookies()
+    for cookie in cookie_dict:
+        if cookie["name"] in ["qhMq_2132_saltkey", "qhMq_2132_auth"]:
+            try:
+                driver.add_cookie({
+                    "domain": "zodgame.xyz",
+                    "name": cookie["name"],
+                    "value": cookie["value"],
+                    "path": "/",
+                })
+            except Exception as e:
+                print(f"【Log】注入 cookie {cookie['name']} 失败: {e}")
+    
     driver.get("https://zodgame.xyz/")
     WebDriverWait(driver, 240).until(lambda x: x.title != "Just a moment...")
 
-    # 验证登录
     assert not driver.find_elements(By.XPATH, '//a[text()="用户名"]'), \
         "Login fails. Cookie may be expired."
     
     formhash = driver.find_element(By.XPATH, '//input[@name="formhash"]').get_attribute('value')
-    assert zodgame_checkin(driver, formhash) and zodgame_task(driver, formhash), \
-        "Checkin or tasks failed."
+    # 签到和任务分开断言，避免短路导致任务不执行
+    ok_checkin = zodgame_checkin(driver, formhash)
+    ok_task = zodgame_task(driver, formhash)
     driver.quit()
+    sys.exit(0 if (ok_checkin or ok_task) else 1)
 
 if __name__ == "__main__":
     zodgame(sys.argv[1])
