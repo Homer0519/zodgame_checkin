@@ -1,10 +1,24 @@
 # encoding=utf8
-import io, re, sys
+import io, re, sys, time
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 import undetected_chromedriver as uc
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
+
+def safe_get(driver, url, timeout=150, retries=3):
+    """带重试的页面加载，应对偶发网络/Cloudflare 卡顿"""
+    driver.set_page_load_timeout(timeout)
+    for attempt in range(1, retries + 1):
+        try:
+            driver.get(url)
+            return True
+        except Exception as e:
+            print(f"【Log】加载失败 {url} (第{attempt}/{retries}次): {type(e).__name__}")
+            if attempt < retries:
+                time.sleep(15)
+    driver.set_page_load_timeout(390)
+    return False
 
 def zodgame_checkin(driver, formhash):
     checkin_url = "https://zodgame.xyz/plugin.php?id=dsu_paulsign:sign&operation=qiandao&infloat=1&inajax=0"    
@@ -115,7 +129,8 @@ def zodgame(cookie_string):
         for x in cookie_string.split(';')
     ]
 
-    driver.get("https://zodgame.xyz/")
+    if not safe_get(driver, "https://zodgame.xyz/"):
+        print("【✗】首页加载失败，任务终止"); driver.quit(); sys.exit(1)
     driver.delete_all_cookies()
     for cookie in cookie_dict:
         if cookie["name"] in ["qhMq_2132_saltkey", "qhMq_2132_auth"]:
@@ -129,7 +144,8 @@ def zodgame(cookie_string):
             except Exception as e:
                 print(f"【Log】注入 cookie {cookie['name']} 失败: {e}")
     
-    driver.get("https://zodgame.xyz/")
+    if not safe_get(driver, "https://zodgame.xyz/"):
+        print("【✗】登录页加载失败，任务终止"); driver.quit(); sys.exit(1)
     WebDriverWait(driver, 240).until(lambda x: x.title != "Just a moment...")
 
     assert not driver.find_elements(By.XPATH, '//a[text()="用户名"]'), \
