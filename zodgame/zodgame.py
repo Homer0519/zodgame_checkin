@@ -151,6 +151,7 @@ def zodgame(cookie_string):
     assert not driver.find_elements(By.XPATH, '//a[text()="用户名"]'), \
         "Login fails. Cookie may be expired."
     
+    WebDriverWait(driver, 90).until(lambda x: x.find_elements(By.XPATH, '//input[@name="formhash"]'))
     formhash = driver.find_element(By.XPATH, '//input[@name="formhash"]').get_attribute('value')
     # 签到和任务分开断言，避免短路导致任务不执行
     ok_checkin = zodgame_checkin(driver, formhash)
