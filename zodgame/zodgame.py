@@ -114,13 +114,66 @@ def zodgame_task(driver, formhash):
     show_reward(driver)
     return success
 
+
+def _detect_chrome_major():
+    # Probe the locally installed Chrome major version so ChromeDriver always matches it.
+    # A hardcoded version breaks every run as soon as the runner image upgrades Chrome.
+    try:
+        import winreg
+        probes = [
+            (winreg.HKEY_CURRENT_USER, r"Software\Google\Chrome\BLBeacon", "version"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\Google\Chrome\BLBeacon", "version"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Google\Chrome\BLBeacon", "version"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\Google\Update\Clients\{8A69D345-D564-463c-AFF1-A69D9E530F96}", "pv"),
+            (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Google\Update\Clients\{8A69D345-D564-463c-AFF1-A69D9E530F96}", "pv"),
+        ]
+        for root, sub, name in probes:
+            try:
+                with winreg.OpenKey(root, sub) as k:
+                    v = str(winreg.QueryValueEx(k, name)[0])
+                m = re.match(r"(\d+)\.", v)
+                if m:
+                    return int(m.group(1))
+            except OSError:
+                continue
+    except Exception:
+        pass
+    try:
+        import os
+        bases = [
+            r"C:\Program Files\Google\Chrome\Application",
+            r"C:\Program Files (x86)\Google\Chrome\Application",
+            os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application"),
+        ]
+        for base in bases:
+            if not os.path.isdir(base):
+                continue
+            for name in os.listdir(base):
+                if re.fullmatch(r"\d+\.\d+\.\d+\.\d+", name):
+                    return int(name.split(".")[0])
+    except Exception:
+        pass
+    return None
+
+
+def _start_chrome(options):
+    # Start Chrome with a ChromeDriver matching the detected Chrome, falling back to auto.
+    major = _detect_chrome_major()
+    print(f"【Log】检测到本机 Chrome 主版本: {major}")
+    if major:
+        try:
+            return uc.Chrome(options=options, version_main=major)
+        except Exception as e:
+            print(f"【Log】ChromeDriver {major} 启动失败({type(e).__name__})，改为自动匹配版本")
+    return uc.Chrome(options=options)
+
 def zodgame(cookie_string):
     options = uc.ChromeOptions()
     options.add_argument("--disable-popup-blocking")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-blink-features=AutomationControlled")
-    driver = uc.Chrome(options=options, version_main=150)
+    driver = _start_chrome(options)
 
     if cookie_string.startswith("cookie:"):
         cookie_string = cookie_string[len("cookie:"):]
